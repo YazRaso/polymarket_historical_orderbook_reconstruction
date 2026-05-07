@@ -1,0 +1,48 @@
+# Informed Market Research: Scripts Summary
+
+## Purpose
+This pipeline retrieves historical hourly Polymarket CLOB snapshots from pmxt and builds filtered parquet datasets for specific markets.
+
+## Data Sources
+- Hourly orderbook snapshots:
+  - `https://r2v2.pmxt.dev/polymarket_orderbook_YYYY-MM-DDTHH.parquet`
+- Polymarket Gamma event metadata (token lookup by slug):
+  - `https://gamma-api.polymarket.com/events/slug/{slug}`
+
+## Core Scripts
+
+### `scripts/dataset_factory.py`
+Provides the core primitives:
+- Generate inclusive hourly timestamps for a range (`YYYY-MM-DDTHH`).
+- Convert each hour to a pmxt parquet URL.
+- Fetch token IDs from Gamma using event slug (`clobTokenIds`, including JSON-string normalization).
+- Filter each hourly parquet with DuckDB by `asset_id IN token_ids`.
+- Write filtered parquet output per hour.
+
+CLI behavior:
+- Requires explicit `--token-ids`, `--slug`, `--start`, `--end`.
+- Writes filtered files under `filtered/<slug>/` by default.
+
+### `scripts/create_datasets_from_csv.py`
+Batch orchestrator over a CSV manifest with columns:
+- `slug,start_date,end_date`
+
+For each CSV row it:
+- Creates a run folder: `data/run<uuid>/`.
+- Resolves token IDs from Gamma for the row slug.
+- Expands the date range into hourly URLs.
+- Filters each hour into `data/run<uuid>/hourly/<job_key>/YYYY-MM-DDTHH.parquet`.
+- Emits runtime telemetry: per-job status, per-hour start/running/done, progress, and ETA.
+- Persists checkpoints at `data/run<uuid>/checkpoints/<job_key>.json`.
+- Merges hourly filtered outputs into final job parquet:
+  - `data/run<uuid>/<slug>_<start>_<end>.parquet`
+
+Resume policy:
+- Reuse `--run-id` to continue from saved checkpoints.
+- Use `--no-resume` to force reprocessing.
+
+## I/O Expectations
+- Input date format: `YYYY-MM-DDTHH`.
+- Output format: parquet.
+- Processing engine: DuckDB.
+- Filtering key: `asset_id` against Gamma token IDs.
