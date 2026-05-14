@@ -5,23 +5,33 @@ from scripts.utils.data_structures import RateLimiter
 
 
 class TestRateLimiter:
-    def test_full_bucket_adds_to_queue(self):
+    def test_full_bucket_consumes_tokens(self):
         limiter = RateLimiter(rate=2, per=10, bucket_size=2)
-        limiter.execute("task 1")
-        limiter.execute("task 2")
-        assert len(limiter.queue) == 0
-        limiter.execute("task 3")
-        assert len(limiter.queue) == 1
-        assert limiter.queue[0][1] == "task 3"
+        calls = []
+
+        def task(label):
+            calls.append(label)
+
+        limiter.execute(task, "task 1", tokens_needed=1)
+        limiter.execute(task, "task 2", tokens_needed=1)
+
+        assert calls == ["task 1", "task 2"]
+        assert limiter.tokens == 0
 
     def test_bucket_refills_over_time(self):
         limiter = RateLimiter(rate=1, per=1, bucket_size=2)
-        limiter.execute("task 1")
-        limiter.execute("task 2")
-        assert len(limiter.queue) == 0
-        limiter.execute("task 3")
-        assert len(limiter.queue) == 1
+        calls = []
+
+        def task(label):
+            calls.append(label)
+
+        limiter.execute(task, "task 1", tokens_needed=1)
+        limiter.execute(task, "task 2", tokens_needed=1)
+
+        assert limiter.tokens == 0
+
         time.sleep(1.1)
-        limiter.execute("task 4")
-        assert len(limiter.queue) == 1
-        assert limiter.queue[0][1] == "task 4"
+        limiter.execute(task, "task 3", tokens_needed=1)
+
+        assert calls == ["task 1", "task 2", "task 3"]
+        assert limiter.tokens == 1

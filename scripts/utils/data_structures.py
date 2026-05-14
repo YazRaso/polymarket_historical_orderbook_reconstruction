@@ -2,8 +2,10 @@
 
 from collections import deque
 import time
-
+import logging
 import threading
+
+logger = logging.getLogger(__name__)
 
 class RateLimiter:
     """
@@ -32,5 +34,12 @@ class RateLimiter:
         self.refill_tokens()
         return self.tokens >= tokens_needed
 
-    def execute(self, task: str) -> None:
-        pass
+    def execute(self, task: callable, *args, tokens_needed: int) -> None:
+        while not self.enough_tokens(tokens_needed):
+            time.sleep(1)
+            logger.debug("Rate limit exceeded, waiting to execute task...")
+
+        self.tokens -= tokens_needed
+
+        with self.semaphore:
+            task(*args)
