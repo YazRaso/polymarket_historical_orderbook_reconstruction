@@ -52,6 +52,7 @@ def filter_parquet_by_asset_ids(
     download_dir: str = "data",
     output_dir: str = "filtered",
     output_path: Optional[str] = None,
+    oi_lookup: Optional[Dict[str, float]] = None,
 ) -> Dict[str, Any]:
     """Filter rows to provided asset ids and write the filtered parquet locally.
 
@@ -63,6 +64,8 @@ def filter_parquet_by_asset_ids(
         download_dir: Directory for optional downloads.
         output_dir: Directory for filtered parquet outputs.
         output_path: Optional explicit output file path.
+        oi_lookup: Optional mapping of asset_id -> open_interest value. When
+            provided, an ``open_interest`` column is added to the output.
 
     Returns:
         Metadata about the filtered output including path and rows_written.
@@ -86,12 +89,26 @@ def filter_parquet_by_asset_ids(
             f"TO '{output_path}' (FORMAT PARQUET)"
         )
         conn.execute(query, asset_ids)
+        if oi_lookup:
+            _add_oi_to_parquet(output_path, oi_lookup, asset_id_column)
         count = conn.execute(
             f"SELECT COUNT(*) AS n FROM read_parquet('{output_path}')"
         ).fetchone()[0]
         return {"url": url, "method": "read_parquet", "path": output_path, "rows_written": count}
     except Exception:
         raise RuntimeError(f"Failed to filter parquet for url: {url} with asset_ids: {asset_ids}")
+
+
+def _add_oi_to_parquet(
+    path: str,
+    oi_lookup: Dict[str, float],
+    asset_id_column: str = "asset_id",
+) -> None:
+    """Read a parquet file, attach an open_interest column, and write it back."""
+    import pandas as pd
+    df = pd.read_parquet(path)
+    df["open_interest"] = df[asset_id_column].map(oi_lookup).fillna(0.0)
+    df.to_parquet(path, index=False)
 
 
 def urls_for_range(start: str, end: str) -> List[str]:
@@ -114,6 +131,7 @@ def download_filtered_parquets(
     end: str,
     asset_id_column: str = "asset_id",
     output_base_dir: str = "filtered",
+    ledger_events_path: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Filter and write parquet files for each hour in a range.
 
@@ -124,6 +142,9 @@ def download_filtered_parquets(
         end: End timestamp in format YYYY-MM-DDTHH.
         asset_id_column: Column name containing asset ids.
         output_base_dir: Base directory for filtered parquet outputs.
+        ledger_events_path: Optional path to a CSV or Parquet file of ledger
+            events. When provided, an ``open_interest`` column is appended to
+            each hourly output using OI computed from those events.
 
     Returns:
         List of result metadata for each hour.
@@ -131,12 +152,23 @@ def download_filtered_parquets(
     output_dir = os.path.join(output_base_dir, slug)
     results: List[Dict[str, Any]] = []
     token_ids = token_ids or _get_event_token_ids(slug)
-    for url in urls_for_range(start, end):
+
+    oi_by_token: Dict[str, Any] = {}
+    if ledger_events_path:
+        from scripts.open_interest_calculator import compute_hourly_oi, get_oi_at_hour, load_events
+        events_df = load_events(ledger_events_path)
+        oi_by_token = {tid: compute_hourly_oi(events_df, tid) for tid in token_ids}
+
+    for ts, url in zip(hourly_strings(start, end), urls_for_range(start, end)):
+        oi_lookup: Optional[Dict[str, float]] = None
+        if ledger_events_path:
+            oi_lookup = {tid: get_oi_at_hour(oi_by_token[tid], ts) for tid in token_ids}
         result = filter_parquet_by_asset_ids(
             url,
             token_ids,
             asset_id_column=asset_id_column,
             output_dir=output_dir,
+            oi_lookup=oi_lookup,
         )
         results.append(result)
     return results
