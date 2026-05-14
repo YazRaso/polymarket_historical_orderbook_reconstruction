@@ -1,6 +1,6 @@
 # Informed Market Research
 
-Pipeline to build filtered datasets from historical hourly Polymarket CLOB snapshots on pmxt.
+Pipeline to build filtered datasets from historical hourly Polymarket CLOB snapshots on pmxt with open interest calculated from onchain activity.
 
 ## Quick Start
 
