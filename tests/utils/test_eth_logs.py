@@ -59,7 +59,7 @@ class TestFetchEvents:
         cache.set(f"{CONDITION_ID}_{FROM_BLOCK}_{TO_BLOCK}_merge", merges)
 
         rl = make_rate_limiter()
-        with patch("requests.post") as mock_post:
+        with patch("scripts.utils.eth_logs._session.post") as mock_post:
             result_splits, result_merges = fetch_events(CONDITION_ID, FROM_BLOCK, TO_BLOCK, rl, cache)
 
         mock_post.assert_not_called()
@@ -74,7 +74,7 @@ class TestFetchEvents:
 
         rl = make_rate_limiter()
         monkeypatch.setenv("ALCHEMY_POLYGON_URL", FAKE_URL)
-        with patch("requests.post", return_value=make_mock_response(result=[])):
+        with patch("scripts.utils.eth_logs._session.post", return_value=make_mock_response(result=[])):
             fetch_events(CONDITION_ID, FROM_BLOCK, TO_BLOCK, rl, cache)
 
         # Should have called Alchemy (at least once for split, once for merge)
@@ -89,7 +89,7 @@ class TestFetchEvents:
             make_mock_response(result=[SPLIT_EVENT]),
             make_mock_response(result=[MERGE_EVENT]),
         ]
-        with patch("requests.post", side_effect=responses) as mock_post:
+        with patch("scripts.utils.eth_logs._session.post", side_effect=responses) as mock_post:
             splits, merges = fetch_events(CONDITION_ID, FROM_BLOCK, TO_BLOCK, rl, cache)
 
         assert splits == [SPLIT_EVENT]
@@ -105,7 +105,7 @@ class TestFetchEvents:
             make_mock_response(result=[SPLIT_EVENT]),
             make_mock_response(result=[MERGE_EVENT]),
         ]
-        with patch("requests.post", side_effect=responses):
+        with patch("scripts.utils.eth_logs._session.post", side_effect=responses):
             fetch_events(CONDITION_ID, FROM_BLOCK, TO_BLOCK, rl, cache)
 
         assert cache.get(f"{CONDITION_ID}_{FROM_BLOCK}_{TO_BLOCK}_split") == [SPLIT_EVENT]
@@ -116,7 +116,7 @@ class TestFetchEvents:
         rl = make_rate_limiter()
         monkeypatch.setenv("ALCHEMY_POLYGON_URL", FAKE_URL)
 
-        with patch("requests.post", return_value=make_mock_response(result=[])):
+        with patch("scripts.utils.eth_logs._session.post", return_value=make_mock_response(result=[])):
             splits, merges = fetch_events(CONDITION_ID, FROM_BLOCK, TO_BLOCK, rl, cache)
 
         assert splits == []
@@ -136,7 +136,7 @@ class TestFetchEvents:
 
         rl.execute = counting_execute
 
-        with patch("requests.post", return_value=make_mock_response(result=[])):
+        with patch("scripts.utils.eth_logs._session.post", return_value=make_mock_response(result=[])):
             fetch_events(CONDITION_ID, FROM_BLOCK, TO_BLOCK, rl, cache)
 
         # One acquire per Alchemy call: one for split, one for merge = 2
@@ -147,7 +147,7 @@ class TestFetchEvents:
         rl = make_rate_limiter()
         monkeypatch.setenv("ALCHEMY_POLYGON_URL", FAKE_URL)
 
-        with patch("requests.post", return_value=make_mock_response(result=[])):
+        with patch("scripts.utils.eth_logs._session.post", return_value=make_mock_response(result=[])):
             result = fetch_events(CONDITION_ID, FROM_BLOCK, TO_BLOCK, rl, cache)
 
         assert isinstance(result, tuple)
@@ -177,7 +177,7 @@ class TestFetchLogsRange:
                 return make_mock_response(error={"code": -32602, "message": "block range too wide"})
             return make_mock_response(result=[])
 
-        with patch("requests.post", side_effect=side_effect):
+        with patch("scripts.utils.eth_logs._session.post", side_effect=side_effect):
             result = _fetch_logs_range(
                 FAKE_URL, POSITION_SPLIT_TOPIC0, CONDITION_ID, from_block, to_block, rl
             )
@@ -190,7 +190,7 @@ class TestFetchLogsRange:
         rl = make_rate_limiter()
         events = [SPLIT_EVENT, SPLIT_EVENT]
 
-        with patch("requests.post", return_value=make_mock_response(result=events)):
+        with patch("scripts.utils.eth_logs._session.post", return_value=make_mock_response(result=events)):
             result = _fetch_logs_range(
                 FAKE_URL, POSITION_SPLIT_TOPIC0, CONDITION_ID, FROM_BLOCK, TO_BLOCK, rl
             )
@@ -217,7 +217,7 @@ class TestFetchLogsRange:
                 return make_mock_response(error={"code": -32602, "message": "overflow"})
             return make_mock_response(result=[])
 
-        with patch("requests.post", side_effect=side_effect):
+        with patch("scripts.utils.eth_logs._session.post", side_effect=side_effect):
             _fetch_logs_range(
                 FAKE_URL, POSITION_SPLIT_TOPIC0, CONDITION_ID, FROM_BLOCK, TO_BLOCK, rl
             )

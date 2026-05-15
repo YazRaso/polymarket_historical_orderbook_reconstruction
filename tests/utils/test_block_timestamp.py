@@ -30,7 +30,7 @@ class TestBlockToTimestamp:
         monkeypatch.setenv("ALCHEMY_POLYGON_URL", FAKE_URL)
         rl = make_rate_limiter()
 
-        with patch("requests.post", return_value=_block_response(1000, 1_700_000_000)):
+        with patch("scripts.utils.block_timestamp._session.post", return_value=_block_response(1000, 1_700_000_000)):
             result = block_to_timestamp(1000, rl)
 
         assert result == 1_700_000_000
@@ -46,7 +46,7 @@ class TestBlockToTimestamp:
             return original(task, *args, tokens_needed=tokens_needed)
 
         rl.execute = counting
-        with patch("requests.post", return_value=_block_response(5, 999)):
+        with patch("scripts.utils.block_timestamp._session.post", return_value=_block_response(5, 999)):
             block_to_timestamp(5, rl)
 
         assert call_count[0] == 1
@@ -60,7 +60,7 @@ class TestBlockToTimestamp:
             captured.append(json)
             return _block_response(42, 12345)
 
-        with patch("requests.post", side_effect=fake_post):
+        with patch("scripts.utils.block_timestamp._session.post", side_effect=fake_post):
             block_to_timestamp(42, rl)
 
         assert captured[0]["params"][0] == hex(42)
@@ -90,7 +90,7 @@ class TestTimestampToBlock:
         block_ts = {0: 0, 1: 100, 2: 200, 3: 300}
         latest = 3
 
-        with patch("requests.post", side_effect=self._make_post_side_effect(block_ts, latest)):
+        with patch("scripts.utils.block_timestamp._session.post", side_effect=self._make_post_side_effect(block_ts, latest)):
             result = timestamp_to_block(250, rl)
 
         assert result == 2
@@ -101,7 +101,7 @@ class TestTimestampToBlock:
         rl = make_rate_limiter()
 
         block_ts = {0: 0, 1: 100, 2: 200, 3: 300}
-        with patch("requests.post", side_effect=self._make_post_side_effect(block_ts, 3)):
+        with patch("scripts.utils.block_timestamp._session.post", side_effect=self._make_post_side_effect(block_ts, 3)):
             result = timestamp_to_block(200, rl)
 
         assert result == 2
@@ -111,7 +111,7 @@ class TestTimestampToBlock:
         rl = make_rate_limiter()
 
         block_ts = {0: 50, 1: 100, 2: 200}
-        with patch("requests.post", side_effect=self._make_post_side_effect(block_ts, 2)):
+        with patch("scripts.utils.block_timestamp._session.post", side_effect=self._make_post_side_effect(block_ts, 2)):
             result = timestamp_to_block(10, rl)
 
         assert result == 0
@@ -121,7 +121,7 @@ class TestTimestampToBlock:
         rl = make_rate_limiter()
 
         block_ts = {0: 0, 1: 100, 2: 200, 3: 300}
-        with patch("requests.post", side_effect=self._make_post_side_effect(block_ts, 3)):
+        with patch("scripts.utils.block_timestamp._session.post", side_effect=self._make_post_side_effect(block_ts, 3)):
             result = timestamp_to_block(999, rl)
 
         assert result == 3
