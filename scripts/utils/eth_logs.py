@@ -9,6 +9,8 @@ from scripts.utils.disk_cache import DiskCache
 
 logger = logging.getLogger(__name__)
 
+_session = requests.Session()
+
 CTF_CONTRACT = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
 POSITION_SPLIT_TOPIC0 = "0x2e6bb91f8cbcda0c93623c54d0403a43514fabc40084ec96b6d5379a74786298"
 POSITIONS_MERGE_TOPIC0 = "0x6f13ca62553fcc2bcd2372180a43949c1e4cebba603901ede2f4e14f36b282ca"
@@ -41,8 +43,16 @@ def _fetch_logs_range(
             ],
             "id": 1,
         }
-        resp = requests.post(url, json=payload, timeout=30)
-        response_holder[0] = resp.json()
+        resp = _session.post(url, json=payload, timeout=30)
+        try:
+            response_holder[0] = resp.json()
+        except Exception:
+            # Empty or non-JSON body — treat as a retriable range error
+            logger.warning(
+                "eth_getLogs non-JSON response (status=%d) blocks=%d..%d — will split",
+                resp.status_code, from_block, to_block,
+            )
+            response_holder[0] = {"error": {"code": -1, "message": "empty response"}}
 
     rate_limiter.execute(_call, tokens_needed=ETH_GETLOGS_CU_COST)
     data = response_holder[0]

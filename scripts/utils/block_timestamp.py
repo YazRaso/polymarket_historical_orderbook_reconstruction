@@ -5,22 +5,20 @@ import requests
 
 from scripts.utils.data_structures import RateLimiter
 
-ETH_GETBLOCK_CU_COST = 75
+ETH_GETBLOCK_CU_COST = 16
+
+_session = requests.Session()
 
 
 def _get_block(number_hex: str) -> dict:
     url = os.environ["ALCHEMY_POLYGON_URL"]
-    headers = {
-        "accept": "application/json",
-        "content-type": "application/json",
-    }
     payload = {
         "jsonrpc": "2.0",
         "method": "eth_getBlockByNumber",
         "params": [number_hex, False],
         "id": 1,
     }
-    resp = requests.post(url, json=payload, timeout=30)
+    resp = _session.post(url, json=payload, timeout=30)
     return resp.json()["result"]
 
 

@@ -22,26 +22,29 @@ def make_rate_limiter() -> RateLimiter:
 
 
 class TestGenerateHourBoundaries:
-    def test_boundaries_are_strictly_between_start_and_end(self):
+    def test_boundaries_include_start_and_end(self):
         boundaries = _generate_hour_boundaries("2024-01-01T10", "2024-01-01T14")
-        # T11, T12, T13 (not T10 or T14)
-        assert len(boundaries) == 3
+        # T10, T11, T12, T13, T14 — inclusive of both endpoints
+        assert len(boundaries) == 5
 
     def test_boundaries_spaced_3600_seconds_apart(self):
         boundaries = _generate_hour_boundaries("2024-01-01T00", "2024-01-01T05")
         for a, b in zip(boundaries, boundaries[1:]):
             assert b - a == 3600
 
-    def test_adjacent_hours_produce_empty_list(self):
-        assert _generate_hour_boundaries("2024-01-01T10", "2024-01-01T11") == []
+    def test_adjacent_hours_produce_two_boundaries(self):
+        # T10 and T11 are both included
+        assert len(_generate_hour_boundaries("2024-01-01T10", "2024-01-01T11")) == 2
 
-    def test_same_start_and_end_produces_empty_list(self):
-        assert _generate_hour_boundaries("2024-01-01T10", "2024-01-01T10") == []
+    def test_same_start_and_end_produces_one_boundary(self):
+        # Single hour range → exactly one sample
+        result = _generate_hour_boundaries("2024-01-01T10", "2024-01-01T10")
+        assert len(result) == 1
 
-    def test_boundary_count_matches_hour_span_minus_one(self):
-        # 10h span → 9 boundaries (T11 through T19)
+    def test_boundary_count_matches_hour_span_plus_one(self):
+        # 10h span T10..T20 → 11 boundaries (inclusive)
         boundaries = _generate_hour_boundaries("2024-01-01T10", "2024-01-01T20")
-        assert len(boundaries) == 9
+        assert len(boundaries) == 11
 
 
 class TestRunMarket:
