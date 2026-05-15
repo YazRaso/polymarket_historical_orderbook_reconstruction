@@ -13,7 +13,7 @@ from typing import Dict, List
 
 import duckdb
 
-import dataset_factory
+from scripts import dataset_factory
 
 
 def _job_key(slug: str, start: str, end: str) -> str:
