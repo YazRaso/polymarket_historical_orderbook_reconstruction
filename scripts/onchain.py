@@ -21,13 +21,13 @@ def _checkpoint_path(run_dir: str, condition_id: str) -> str:
 
 
 def _generate_hour_boundaries(start_date: str, end_date: str) -> list[int]:
-    """Return unix timestamps for every full hour strictly between start and end."""
+    """Return unix timestamps for every full hour from start through end (inclusive)."""
     start_dt = datetime.strptime(start_date, "%Y-%m-%dT%H").replace(tzinfo=timezone.utc)
     end_dt = datetime.strptime(end_date, "%Y-%m-%dT%H").replace(tzinfo=timezone.utc)
 
     boundaries: list[int] = []
-    current = start_dt + timedelta(hours=1)
-    while current < end_dt:
+    current = start_dt
+    while current <= end_dt:
         boundaries.append(int(current.timestamp()))
         current += timedelta(hours=1)
     return boundaries
@@ -46,16 +46,19 @@ async def run_market(
 
     Returns the path of the written parquet file.
     """
+    tag = f"[on_chain {conditionId[:10]}]"
     ckpt_path = _checkpoint_path(run_dir, conditionId)
     os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
 
     # Step 1 — checkpoint check
     ckpt = load_checkpoint(ckpt_path)
     if resume and ckpt.get("status") == "completed":
+        print(f"{tag} skip completed")
         return ckpt["output_path"]
 
     # Step 2 — generate hour boundaries
     hour_boundaries = _generate_hour_boundaries(start_date, end_date)
+    print(f"{tag} range={start_date}..{end_date} hours={len(hour_boundaries)}")
 
     # Step 3 — resolve block range
     start_ts = int(
@@ -66,11 +69,13 @@ async def run_market(
     )
     from_block = await asyncio.to_thread(timestamp_to_block, start_ts, rate_limiter)
     to_block = await asyncio.to_thread(timestamp_to_block, end_ts, rate_limiter)
+    print(f"{tag} blocks={from_block}..{to_block}")
 
     # Step 4 — fetch events
     split_events, merge_events = await asyncio.to_thread(
         fetch_events, conditionId, from_block, to_block, rate_limiter, cache
     )
+    print(f"{tag} events split={len(split_events)} merge={len(merge_events)}")
 
     # Step 5 — compute OI
     b2ts = functools.partial(block_to_timestamp, rate_limiter=rate_limiter)
@@ -94,5 +99,6 @@ async def run_market(
         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
     }
     save_checkpoint(ckpt_path, new_ckpt)
+    print(f"{tag} completed output={output_path}")
 
     return output_path
